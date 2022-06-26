@@ -1,0 +1,200 @@
+import psycopg2
+connect = psycopg2.connect(database="clients", user="postgres", password="postgres")
+
+
+def create_db(conn):
+    with conn.cursor() as cur:
+        cur.execute("""DROP SCHEMA IF EXISTS main CASCADE;
+                        CREATE SCHEMA main;
+                        SET SEARCH_PATH TO main;
+                        CREATE TABLE clients
+                            (id SERIAL PRIMARY KEY,
+                            first_name VARCHAR(20) NOT NULL,
+                            last_name VARCHAR(20) NOT NULL,
+                            email VARCHAR(30) NOT NULL);
+                        CREATE TABLE client_phones
+                            (id SERIAL PRIMARY KEY,
+                            client_id INT REFERENCES clients(id),
+                            phone VARCHAR(15));""")
+        print('База данных создана успешно')
+        conn.commit()
+
+
+def add_client(conn, first_name, last_name, email):
+    with conn.cursor() as cur:
+        cur.execute("""SET SEARCH_PATH TO main;
+                        INSERT INTO clients(first_name, last_name, email)
+                        VALUES(%s, %s, %s);""", (first_name, last_name, email))
+        conn.commit()
+
+
+def add_phone(conn, client_id, phone):
+    with conn.cursor() as cur:
+        cur.execute("""SET SEARCH_PATH TO main;
+                        INSERT INTO client_phones(client_id, phone)
+                        VALUES(%s, %s);""", (client_id, phone))
+        conn.commit()
+
+
+def change_client(client_id):
+    change = int(input('Чтобы изменить имя, введите 1\n'
+                       'Чтобы изменить фамилию, введите 2\n'
+                       'Чтобы изменить электронную почту, введите 3\n'
+                       'Чтобы изменить телефон, введите 4\n'))
+    if change == 1:
+        first_name = input('Введите новое имя: ')
+        with connect as conn:
+            def change_first_name(conn, first_name):
+                with conn.cursor() as cur:
+                    cur.execute("""SET SEARCH_PATH TO main;
+                                    UPDATE clients SET first_name = %s
+                                    WHERE id = %s""", (first_name, client_id))
+                    conn.commit()
+            change_first_name(conn, first_name)
+    elif change == 2:
+        last_name = input('Введите фамилию: ')
+        with connect as conn:
+            def change_last_name(conn, last_name):
+                with conn.cursor() as cur:
+                    cur.execute("""SET SEARCH_PATH TO main;
+                                    UPDATE clients SET last_name = %s
+                                    WHERE id = %s""", (last_name, client_id))
+                    conn.commit()
+            change_last_name(conn, last_name)
+    elif change == 3:
+        email = input('Введите эл.почту: ')
+        with connect as conn:
+            def change_email(conn, email):
+                with conn.cursor() as cur:
+                    cur.execute("""SET SEARCH_PATH TO main;
+                                    UPDATE clients SET email = %s
+                                    WHERE id = %s""", (email, client_id))
+                    conn.commit()
+            change_email(conn, email)
+    elif change == 4:
+        phone = input('Введите телефон: ')
+        with connect as conn:
+            def change_phone(conn, phone):
+                with conn.cursor() as cur:
+                    cur.execute("""SET SEARCH_PATH TO main;
+                                    UPDATE client_phones SET phone = %s
+                                    WHERE client_id = %s""", (phone, client_id))
+                    conn.commit()
+            change_phone(conn, phone)
+    else:
+        print('Неправильный номер команды')
+
+
+def delete_phone(conn, client_id, phone):
+    with conn.cursor() as cur:
+        cur.execute("""SET SEARCH_PATH TO main;
+                        UPDATE client_phones SET phone = NULL
+                        WHERE client_id = %s AND phone = %s""", (client_id, phone))
+        conn.commit()
+
+
+def delete_client(conn, client_id):
+    with conn.cursor() as cur:
+        cur.execute("""SET SEARCH_PATH TO main;
+                        DELETE FROM client_phones
+                        WHERE client_id = %s;
+                        DELETE FROM clients
+                        WHERE id = %s""", (client_id, client_id))
+        conn.commit()
+
+
+def find_client(conn):
+    find = int(input('Поиск по имени - 1\n'
+                     'По фамилии - 2\n'
+                     'По эл.почте - 3\n'
+                     'По телефону - 4\n'))
+    if find == 1:
+        first_name = input('Введите имя: ')
+        def find_by_first_name(first_name):
+            with conn.cursor() as cur:
+                cur.execute("""SET SEARCH_PATH TO main;
+                                SELECT *
+                                FROM clients
+                                WHERE first_name = %s""", (first_name,))
+                print(cur.fetchone())
+        find_by_first_name(first_name)
+    elif find == 2:
+        last_name = input('Введите фамилию: ')
+        def find_by_last_name(last_name):
+            with conn.cursor() as cur:
+                cur.execute("""SET SEARCH_PATH TO main;
+                                SELECT *
+                                FROM clients
+                                WHERE last_name = %s""", (last_name,))
+                print(cur.fetchone())
+        find_by_last_name(last_name)
+    elif find == 3:
+        email = input('Введите эл.почту: ')
+        def find_by_email(email):
+            with conn.cursor() as cur:
+                cur.execute("""SET SEARCH_PATH TO main;
+                               SELECT *
+                               FROM clients
+                               WHERE email = %s""", (email,))
+                print(cur.fetchone())
+        find_by_email(email)
+    elif find == 4:
+        phone = input('Введите телефон: ')
+        def find_by_phone(phone):
+            with conn.cursor() as cur:
+                cur.execute("""SET SEARCH_PATH TO main;
+                               SELECT c.*
+                               FROM clients c
+                               JOIN client_phones cp on cp.client_id = c.id
+                               WHERE cp.phone = %s""", (phone,))
+                print(cur.fetchone())
+        find_by_phone(phone)
+    else:
+        print('Неправильный номер команды')
+
+
+def main():
+    while True:
+        command = int(input('Создать базу данных - 1\n'
+                        'Добавить нового клиента - 2\n'
+                        'Добавить телефон для клиента - 3\n'
+                        'Изменить данные о клиенте - 4\n'
+                        'Удалить телефон для клиента - 5\n'
+                        'Удалить клиента - 6\n'
+                        'Найти клиента по параметрам - 7\n'
+                        'Выход - 8\n'))
+        if command == 1:
+            with connect as conn:
+                create_db(conn)
+        elif command == 2:
+            with connect as conn:
+                first_name = input('Введите имя: ')
+                last_name = input('Введите фамилию: ')
+                email = input('Введите эл.почту: ')
+                add_client(conn, first_name, last_name, email)
+        elif command == 3:
+            with connect as conn:
+                client_id = input('Введите id клиента: ')
+                phone = input('Введите телефон: ')
+                add_phone(conn, client_id, phone)
+        elif command == 4:
+            change_client(input('Введите id клиента: '))
+        elif command == 5:
+            with connect as conn:
+                client_id = input('Введите id клиента: ')
+                phone = input('Введите телефон: ')
+                delete_phone(conn, client_id, phone)
+        elif command == 6:
+            with connect as conn:
+                client_id = input('Введите id клиента: ')
+                delete_client(conn, client_id)
+        elif command == 7:
+            with connect as conn:
+                find_client(conn)
+        elif command == 8:
+            break
+        else:
+            print('Неправильный номер команды')
+
+main()
+
